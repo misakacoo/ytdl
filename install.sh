@@ -123,7 +123,7 @@ validate_install_dir() {
     echo "目标路径已存在且不是目录：$INSTALL_DIR"
     exit 1
   fi
-  if [[ -d "$INSTALL_DIR" && ! has_project_files "$INSTALL_DIR" ]]; then
+  if [[ -d "$INSTALL_DIR" ]] && ! has_project_files "$INSTALL_DIR"; then
     if find "$INSTALL_DIR" -mindepth 1 -print -quit | grep -q .; then
       echo "目标目录已存在且不是 ytdl 项目目录：$INSTALL_DIR"
       echo "请清理该目录，或使用环境变量 YTDL_HOME 指定其他安装位置。"
