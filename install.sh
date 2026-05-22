@@ -355,7 +355,9 @@ perform_install() {
   "$VENV_DIR/bin/python" -m pip install --upgrade -r "$SCRIPT_DIR/requirements.txt"
 
   mkdir -p "$SCRIPT_DIR/downloads"
+  touch "$SCRIPT_DIR/url.txt"
   $SUDO chown -R "$TARGET_USER:$TARGET_GROUP" "$SCRIPT_DIR/downloads"
+  $SUDO chown "$TARGET_USER:$TARGET_GROUP" "$SCRIPT_DIR/url.txt"
   chmod +x "$SCRIPT_DIR/install.sh" "$SCRIPT_DIR/run.sh" "$SCRIPT_DIR/downloader.py"
   $SUDO ln -sf "$SCRIPT_DIR/run.sh" "$YTDL_COMMAND"
 

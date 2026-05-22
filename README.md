@@ -12,7 +12,9 @@
 - 支持 GitHub 一键安装，首次执行即可自动拉取完整项目
 - 自动检测是否已安装，已安装时再次运行会直接进入主菜单
 - 自动安装或升级 `ffmpeg`、Python 运行环境和项目依赖
+- 支持 `ytdl <YouTube链接>` 直接进入下载选项
 - 支持 `自动最佳`、`1080p`、`4K`、`仅音频` 四种常用下载模式
+- 支持基于 `/opt/ytdl/url.txt` 的批量下载（每行一个链接）
 - 视频下载后自动合并为 `mp4`
 - 音频下载后自动提取并转换为 `mp3`
 - 内置 `yt-dlp` 更新入口和完整重装入口
@@ -38,6 +40,22 @@ bash <(wget -qO- https://raw.githubusercontent.com/misakacoo/ytdl/main/install.s
 ```bash
 ytdl
 ```
+
+如果你已经有一个 YouTube 链接，也可以直接这样使用：
+
+```bash
+ytdl "https://www.youtube.com/watch?v=xxxxxxxxxxx"
+```
+
+程序会直接进入下载选项，不再先经过主菜单。
+
+如果你要直接执行批量下载，也可以这样使用：
+
+```bash
+ytdl batch
+```
+
+程序会直接进入批量下载，不再先经过主菜单。
 
 ## 一键安装
 
@@ -68,6 +86,13 @@ bash install.sh
 ytdl
 ```
 
+也支持这些快捷命令：
+
+```bash
+ytdl "https://www.youtube.com/watch?v=xxxxxxxxxxx"
+ytdl batch
+```
+
 也可以执行：
 
 ```bash
@@ -76,11 +101,12 @@ bash /opt/ytdl/install.sh
 
 如果项目已经安装完成，这条命令会直接进入主菜单，而不会重复首次安装流程。
 
-主菜单分为两类功能：
+主菜单包含：
 
 1. `升级与维护`
-2. `下载`
-3. `退出`
+2. `单个下载`
+3. `批量下载`
+4. `退出`
 
 `升级与维护` 菜单包含：
 
@@ -88,13 +114,47 @@ bash /opt/ytdl/install.sh
 2. 重新执行完整安装
 3. 返回上一级
 
-`下载` 菜单包含：
+`单个下载` 菜单包含：
 
 1. 自动最佳视频
 2. 1080p 视频
 3. 4K 视频
 4. 仅音频
 5. 返回上一级
+
+`批量下载` 菜单包含：
+
+1. 批量下载视频（自动最佳，合并为 `mp4`）
+2. 批量下载音频（提取并转换为 `mp3`）
+3. 返回上一级
+
+## 批量下载
+
+批量下载固定读取项目目录下的 `url.txt` 文件。
+
+默认安装场景下，该文件路径为：
+
+```bash
+/opt/ytdl/url.txt
+```
+
+使用方法：
+
+1. 将多个 YouTube 链接写入 `/opt/ytdl/url.txt`
+2. 一行一个链接
+3. 空行会自动忽略
+4. 以 `#` 开头的行会视为注释并自动忽略
+5. 执行 `ytdl batch`，直接进入批量下载
+6. 选择 `批量下载视频` 或 `批量下载音频`
+
+示例：
+
+```text
+https://www.youtube.com/watch?v=video_a
+https://www.youtube.com/watch?v=video_b
+# 这是一行注释
+https://www.youtube.com/watch?v=video_c
+```
 
 ## 安装内容
 
@@ -106,6 +166,7 @@ bash /opt/ytdl/install.sh
 - 创建项目虚拟环境 `.venv`
 - 安装 `yt-dlp`
 - 创建默认下载目录 `downloads/`
+- 创建批量下载链接文件 `url.txt`
 - 注册全局命令 `ytdl`
 
 ## 目录说明
@@ -114,6 +175,7 @@ bash /opt/ytdl/install.sh
 - `install.sh`：统一入口安装脚本
 - `run.sh`：直接启动程序的脚本
 - `requirements.txt`：Python 依赖
+- `url.txt`：批量下载链接列表文件
 
 默认项目目录：
 
@@ -125,6 +187,12 @@ bash /opt/ytdl/install.sh
 
 ```bash
 /opt/ytdl/downloads
+```
+
+默认批量链接文件：
+
+```bash
+/opt/ytdl/url.txt
 ```
 
 如果安装后不手动修改下载路径，视频和音频文件默认都会保存到 `/opt/ytdl/downloads`。
@@ -143,7 +211,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/misakacoo/ytdl/main/install.
 - 下载时如果缺少 `ffmpeg`，程序会提示是否自动执行完整安装
 - 如果系统 `Python` 低于 `3.10`，安装脚本会提示是否自动升级；如果不升级，安装会终止
 - `更新 yt-dlp` 通常需要 `Python 3.10+`
-- 本项目默认只处理单个视频链接，不下载整个播放列表
+- 单个下载默认只处理单个视频链接，不下载整个播放列表
+- 批量下载按 `url.txt` 中的链接顺序逐个执行
 - 某些视频可能受地区、年龄、登录或平台限制，`yt-dlp` 可能无法下载
 
 ## 发布前提醒
@@ -155,3 +224,4 @@ bash <(curl -fsSL https://raw.githubusercontent.com/misakacoo/ytdl/main/install.
 - `downloader.py`
 - `requirements.txt`
 - `README.md`
+- `url.txt`
