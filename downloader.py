@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -13,8 +14,9 @@ from yt_dlp.utils import DownloadError
 
 
 PROJECT_DIR = Path(__file__).resolve().parent
-DEFAULT_DOWNLOAD_DIR = PROJECT_DIR / "downloads"
+DEFAULT_DOWNLOAD_DIR = Path("/opt/ytdl/download")
 DEFAULT_BATCH_URL_FILE = PROJECT_DIR / "url.txt"
+DOWNLOAD_PATH_FILE = PROJECT_DIR / "download_path.txt"
 
 
 def ask_non_empty(prompt: str) -> str:
@@ -44,8 +46,9 @@ def ask_main_action() -> str:
         print("1. 升级与维护")
         print("2. 单个下载")
         print("3. 批量下载")
-        print("4. 退出")
-        choice = input("请输入选项 [1/2/3/4]：").strip()
+        print("4. 修改下载路径")
+        print("5. 退出")
+        choice = input("请输入选项 [1/2/3/4/5]：").strip()
         if choice == "1":
             return "maintenance"
         if choice == "2":
@@ -53,24 +56,32 @@ def ask_main_action() -> str:
         if choice == "3":
             return "batch"
         if choice == "4":
+            return "change_download_dir"
+        if choice == "5":
             return "exit"
-        print("无效选项，请输入 1、2、3 或 4。")
+        print("无效选项，请输入 1、2、3、4 或 5。")
 
 
 def ask_maintenance_action() -> str:
     while True:
         print("\n请选择维护操作：")
         print("1. 更新 yt-dlp")
-        print("2. 重新执行完整安装")
-        print("3. 返回上一级")
-        choice = input("请输入选项 [1/2/3]：").strip()
+        print("2. 更新 ytdl")
+        print("3. 重新执行完整安装")
+        print("4. 卸载 ytdl")
+        print("5. 返回上一级")
+        choice = input("请输入选项 [1/2/3/4/5]：").strip()
         if choice == "1":
             return "update"
         if choice == "2":
-            return "reinstall"
+            return "update_project"
         if choice == "3":
+            return "reinstall"
+        if choice == "4":
+            return "uninstall"
+        if choice == "5":
             return "back"
-        print("无效选项，请输入 1、2 或 3。")
+        print("无效选项，请输入 1、2、3、4 或 5。")
 
 
 def ask_download_profile() -> str:
@@ -111,13 +122,32 @@ def ask_batch_profile() -> str:
         print("无效选项，请输入 1、2 或 3。")
 
 
-def ask_output_dir() -> Path:
-    raw_value = input(
-        f"下载目录（直接回车使用默认目录：{DEFAULT_DOWNLOAD_DIR}）："
-    ).strip()
-    target_dir = Path(raw_value).expanduser() if raw_value else DEFAULT_DOWNLOAD_DIR
+def ask_download_dir(default_dir: Path, prompt: str) -> Path:
+    raw_value = input(f"{prompt}（直接回车使用：{default_dir}）：").strip()
+    return Path(raw_value).expanduser() if raw_value else default_dir
+
+
+def load_download_dir() -> Path:
+    if DOWNLOAD_PATH_FILE.exists():
+        value = DOWNLOAD_PATH_FILE.read_text(encoding="utf-8").strip()
+        if value:
+            return Path(value).expanduser()
+
+    return DEFAULT_DOWNLOAD_DIR
+
+
+def save_download_dir(target_dir: Path) -> Path:
     target_dir.mkdir(parents=True, exist_ok=True)
+    DOWNLOAD_PATH_FILE.write_text(f"{target_dir}\n", encoding="utf-8")
     return target_dir
+
+
+def is_same_or_within(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve(strict=False).relative_to(parent.resolve(strict=False))
+        return True
+    except ValueError:
+        return False
 
 
 def print_cli_usage() -> None:
@@ -126,6 +156,7 @@ def print_cli_usage() -> None:
     print("  ytdl <YouTube链接>    直接进入下载选项")
     print("  ytdl batch            直接进入批量下载")
     print("")
+    print(f"默认下载目录配置文件：{DOWNLOAD_PATH_FILE}")
     print(f"批量下载链接文件：{DEFAULT_BATCH_URL_FILE}")
 
 
@@ -238,6 +269,17 @@ def update_yt_dlp() -> None:
     print("\nyt-dlp 更新完成。\n")
 
 
+def update_ytdl_project() -> None:
+    print("\n开始更新 ytdl 项目，请稍候...\n")
+    subprocess.run(
+        ["bash", str(PROJECT_DIR / "install.sh"), "--update-project", "--yes"],
+        check=True,
+        cwd=PROJECT_DIR,
+    )
+    print("\nytdl 项目更新完成，正在重启程序以加载新版本。\n")
+    os.execv(sys.executable, [sys.executable, str(PROJECT_DIR / "downloader.py"), *sys.argv[1:]])
+
+
 def run_full_install() -> None:
     print("\n开始执行完整安装，请稍候...\n")
     subprocess.run(
@@ -249,6 +291,7 @@ def run_full_install() -> None:
 
 
 def download(url: str, profile: str, output_dir: Path) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
     options = build_options(profile, output_dir)
     ensure_dependencies(profile)
 
@@ -257,6 +300,7 @@ def download(url: str, profile: str, output_dir: Path) -> None:
 
 
 def download_many(urls: list[str], profile: str, output_dir: Path) -> tuple[int, list[tuple[str, str]]]:
+    output_dir.mkdir(parents=True, exist_ok=True)
     ensure_dependencies(profile)
 
     success_count = 0
@@ -285,7 +329,83 @@ def handle_maintenance() -> None:
         if action == "update":
             update_yt_dlp()
             continue
+        if action == "update_project":
+            update_ytdl_project()
+            continue
+        if action == "uninstall":
+            handle_uninstall()
+            continue
         run_full_install()
+
+
+def handle_change_download_dir() -> None:
+    current_dir = load_download_dir()
+    print(f"\n当前默认下载目录：{current_dir}")
+    target_dir = ask_download_dir(current_dir, "请输入新的默认下载目录")
+    target_dir = save_download_dir(target_dir)
+    print(f"\n默认下载目录已更新为：{target_dir}\n")
+
+
+def handle_uninstall() -> None:
+    download_dir = load_download_dir()
+    remove_downloads = False
+    remove_ffmpeg = False
+    delete_items = [f"项目目录：{PROJECT_DIR}", "全局命令：/usr/local/bin/ytdl"]
+    keep_items = ["系统 Python", "apt 安装的软件包", "构建依赖"]
+    local_ffmpeg = Path("/usr/local/bin/ffmpeg")
+    local_ffprobe = Path("/usr/local/bin/ffprobe")
+
+    print("\n即将卸载 ytdl。")
+    print(f"项目目录：{PROJECT_DIR}")
+    print("将删除：项目目录、虚拟环境以及全局命令 ytdl。")
+    print("默认不会删除系统 Python、apt 安装的软件包或构建依赖。")
+
+    if is_same_or_within(download_dir, PROJECT_DIR):
+        print(f"当前下载目录位于项目目录内，会随卸载一起删除：{download_dir}")
+        delete_items.append(f"项目内下载目录：{download_dir}")
+    else:
+        print(f"当前下载目录位于项目目录外：{download_dir}")
+        remove_downloads = ask_yes_no("是否同时删除当前下载目录？", default=False)
+        if remove_downloads:
+            delete_items.append(f"项目外下载目录：{download_dir}")
+        else:
+            keep_items.append(f"下载目录：{download_dir}")
+
+    if local_ffmpeg.exists() or local_ffprobe.exists():
+        remove_ffmpeg = ask_yes_no(
+            "是否同时删除 /usr/local/bin/ffmpeg 和 /usr/local/bin/ffprobe？"
+            " 仅在你确认它们是本脚本安装时才建议选择“是”",
+            default=False,
+        )
+        if remove_ffmpeg:
+            delete_items.append("/usr/local/bin/ffmpeg")
+            delete_items.append("/usr/local/bin/ffprobe")
+        else:
+            keep_items.append("/usr/local/bin/ffmpeg")
+            keep_items.append("/usr/local/bin/ffprobe")
+
+    print("\n卸载预览：")
+    print("将删除：")
+    for item in delete_items:
+        print(f"- {item}")
+    print("将保留：")
+    for item in keep_items:
+        print(f"- {item}")
+
+    if not ask_yes_no("确认开始卸载吗？", default=False):
+        print("已取消卸载。")
+        return
+
+    command = ["bash", str(PROJECT_DIR / "install.sh"), "--uninstall", "--yes"]
+    if remove_downloads:
+        command.append("--remove-downloads")
+    if remove_ffmpeg:
+        command.append("--remove-ffmpeg")
+
+    print("\n开始卸载，请稍候...\n")
+    subprocess.run(command, check=True, cwd=PROJECT_DIR)
+    print("\nytdl 已卸载完成。")
+    raise SystemExit(0)
 
 
 def handle_single_download(preset_url: str | None = None) -> None:
@@ -295,8 +415,9 @@ def handle_single_download(preset_url: str | None = None) -> None:
             return
 
         url = preset_url or ask_non_empty("请输入 YouTube 视频/音频链接：")
-        output_dir = ask_output_dir()
+        output_dir = load_download_dir()
 
+        print(f"\n当前默认下载目录：{output_dir}")
         print("\n开始下载，请稍候...\n")
         download(url, profile, output_dir)
         print(f"\n下载完成，文件已保存到：{output_dir}\n")
@@ -316,8 +437,9 @@ def handle_batch_download() -> None:
             return
 
         urls = read_batch_urls(DEFAULT_BATCH_URL_FILE)
-        output_dir = ask_output_dir()
+        output_dir = load_download_dir()
 
+        print(f"\n当前默认下载目录：{output_dir}")
         print(f"\n已读取 {len(urls)} 个链接，开始批量下载，请稍候...\n")
         success_count, failures = download_many(urls, profile, output_dir)
 
@@ -370,6 +492,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print("YouTube 下载工具（基于 yt-dlp）")
     print("按 Ctrl+C 可以随时退出。\n")
+    print(f"当前默认下载目录：{load_download_dir()}\n")
 
     try:
         cli_result = run_cli_mode(argv)
@@ -402,6 +525,9 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             if action == "batch":
                 handle_batch_download()
+                continue
+            if action == "change_download_dir":
+                handle_change_download_dir()
                 continue
             if action == "exit":
                 print("已退出。")

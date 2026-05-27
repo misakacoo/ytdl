@@ -1,120 +1,81 @@
 # ytdl
 
-一个面向 Debian / Ubuntu 系的 YouTube 下载工具，基于 `yt-dlp`，提供更适合日常使用的交互式菜单、完整安装引导和 GitHub 一键安装体验。
+一个面向 Debian / Ubuntu 的 YouTube 下载工具，基于 `yt-dlp`，提供交互式菜单、一键安装、项目更新和卸载能力。
 
-适合希望在服务器、VPS 或日常 Linux 环境里快速完成 YouTube 视频和音频下载的用户。安装完成后，可以直接通过菜单执行下载、更新和维护操作，不需要手动拼接复杂命令。
-
-- GitHub 仓库：`https://github.com/misakacoo/ytdl`
-- 一键安装脚本：`https://raw.githubusercontent.com/misakacoo/ytdl/main/install.sh`
-
-## 功能特性
-
-- 支持 GitHub 一键安装，首次执行即可自动拉取完整项目
-- 自动检测是否已安装，已安装时再次运行会直接进入主菜单
-- 自动安装或升级 `ffmpeg`、Python 运行环境和项目依赖
-- 支持 `ytdl <YouTube链接>` 直接进入下载选项
-- 支持 `自动最佳`、`1080p`、`4K`、`仅音频` 四种常用下载模式
-- 支持基于 `/opt/ytdl/url.txt` 的批量下载（每行一个链接）
-- 视频下载后自动合并为 `mp4`
-- 音频下载后自动提取并转换为 `mp3`
-- 内置 `yt-dlp` 更新入口和完整重装入口
-- 默认安装目录固定为 `/opt/ytdl`
-- 默认下载目录固定为 `/opt/ytdl/downloads`
+- GitHub：`https://github.com/misakacoo/ytdl`
+- 一键安装：`https://raw.githubusercontent.com/misakacoo/ytdl/main/install.sh`
 
 ## 快速开始
-
-推荐直接使用一键安装命令：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/misakacoo/ytdl/main/install.sh)
 ```
 
-如果系统没有 `curl`，也可以使用：
+如果没有 `curl`：
 
 ```bash
 bash <(wget -qO- https://raw.githubusercontent.com/misakacoo/ytdl/main/install.sh)
 ```
 
-安装完成后，默认可以通过下面的命令启动：
+安装完成后可直接使用：
 
 ```bash
 ytdl
-```
-
-如果你已经有一个 YouTube 链接，也可以直接这样使用：
-
-```bash
-ytdl "https://www.youtube.com/watch?v=xxxxxxxxxxx"
-```
-
-程序会直接进入下载选项，不再先经过主菜单。
-
-如果你要直接执行批量下载，也可以这样使用：
-
-```bash
-ytdl batch
-```
-
-程序会直接进入批量下载，不再先经过主菜单。
-
-## 一键安装
-
-执行一键安装时，脚本会自动完成以下流程：
-
-1. 检测当前系统是否为 Debian / Ubuntu 系
-2. 检测本机是否已经安装过 `ytdl`
-3. 如果尚未安装，提示是否开始完整安装
-4. 自动从 GitHub 下载项目到 `/opt/ytdl`
-5. 安装 `ffmpeg`、Python 环境和项目依赖
-6. 安装完成后自动进入主菜单
-
-## 手动安装
-
-如果你更喜欢先克隆仓库再安装，可以这样使用：
-
-```bash
-git clone https://github.com/misakacoo/ytdl.git
-cd ytdl
-bash install.sh
-```
-
-## 使用方式
-
-安装完成后，可以直接执行：
-
-```bash
-ytdl
-```
-
-也支持这些快捷命令：
-
-```bash
 ytdl "https://www.youtube.com/watch?v=xxxxxxxxxxx"
 ytdl batch
 ```
 
-也可以执行：
+## 功能概览
+
+- 支持自动最佳、`1080p`、`4K`、仅音频四种下载模式
+- 支持批量下载，默认读取 `/opt/ytdl/url.txt`
+- 视频自动合并为 `mp4`
+- 音频自动提取并转换为 `mp3`
+- 支持修改默认下载路径
+- 支持更新 `yt-dlp`
+- 支持更新 `ytdl` 项目本身
+- 支持卸载项目，并按需删除下载目录或静态版 `ffmpeg`
+
+## 安装与目录
+
+- 默认安装目录：`/opt/ytdl`
+- 默认下载目录：`/opt/ytdl/download`
+- 下载目录配置：`/opt/ytdl/download_path.txt`
+- 批量链接文件：`/opt/ytdl/url.txt`
+
+首次安装时会自动：
+
+- 安装或升级 `ffmpeg`、Python 运行环境和依赖
+- 创建虚拟环境 `.venv`
+- 提示设置默认下载路径
+- 注册全局命令 `ytdl`
+
+如需自定义安装路径，可先设置：
 
 ```bash
-bash /opt/ytdl/install.sh
+export YTDL_HOME=/your/custom/path
+bash <(curl -fsSL https://raw.githubusercontent.com/misakacoo/ytdl/main/install.sh)
 ```
 
-如果项目已经安装完成，这条命令会直接进入主菜单，而不会重复首次安装流程。
+## 菜单说明
 
-主菜单包含：
+主菜单：
 
 1. `升级与维护`
 2. `单个下载`
 3. `批量下载`
-4. `退出`
+4. `修改下载路径`
+5. `退出`
 
-`升级与维护` 菜单包含：
+`升级与维护` 菜单：
 
 1. 更新 `yt-dlp`
-2. 重新执行完整安装
-3. 返回上一级
+2. 更新 `ytdl`
+3. 重新执行完整安装
+4. 卸载 `ytdl`
+5. 返回上一级
 
-`单个下载` 菜单包含：
+`单个下载` 菜单：
 
 1. 自动最佳视频
 2. 1080p 视频
@@ -122,106 +83,57 @@ bash /opt/ytdl/install.sh
 4. 仅音频
 5. 返回上一级
 
-`批量下载` 菜单包含：
+`批量下载` 菜单：
 
-1. 批量下载视频（自动最佳，合并为 `mp4`）
-2. 批量下载音频（提取并转换为 `mp3`）
+1. 批量下载视频
+2. 批量下载音频
 3. 返回上一级
 
 ## 批量下载
 
-批量下载固定读取项目目录下的 `url.txt` 文件。
+批量下载读取 `/opt/ytdl/url.txt`，一行一个链接。
 
-默认安装场景下，该文件路径为：
-
-```bash
-/opt/ytdl/url.txt
-```
-
-使用方法：
-
-1. 将多个 YouTube 链接写入 `/opt/ytdl/url.txt`
-2. 一行一个链接
-3. 空行会自动忽略
-4. 以 `#` 开头的行会视为注释并自动忽略
-5. 执行 `ytdl batch`，直接进入批量下载
-6. 选择 `批量下载视频` 或 `批量下载音频`
+- 空行会忽略
+- 以 `#` 开头的行会忽略
 
 示例：
 
 ```text
 https://www.youtube.com/watch?v=video_a
 https://www.youtube.com/watch?v=video_b
-# 这是一行注释
+# 注释
 https://www.youtube.com/watch?v=video_c
 ```
 
-## 安装内容
+## 更新与卸载
 
-完整安装流程会自动完成这些事情：
+更新说明：
 
-- 安装 `python3`、`python3-venv` 和必要系统工具
-- 检测当前 `python3` 版本，必要时提示编译安装更新版本
-- 下载并安装最新 `ffmpeg` 与 `ffprobe`
-- 创建项目虚拟环境 `.venv`
-- 安装 `yt-dlp`
-- 创建默认下载目录 `downloads/`
-- 创建批量下载链接文件 `url.txt`
-- 注册全局命令 `ytdl`
+- 更新 `yt-dlp`：只升级当前虚拟环境里的 `yt-dlp`
+- 更新 `ytdl`：从 GitHub 拉取最新项目代码，保留 `.venv`、`url.txt`、`download_path.txt` 和下载目录，完成后自动重启程序加载新版本
 
-## 目录说明
+卸载默认删除：
 
-- `downloader.py`：交互式下载主程序
-- `install.sh`：统一入口安装脚本
-- `run.sh`：直接启动程序的脚本
-- `requirements.txt`：Python 依赖
-- `url.txt`：批量下载链接列表文件
+- 当前安装的项目目录
+- 全局命令 `/usr/local/bin/ytdl`
 
-默认项目目录：
+卸载可选删除：
 
-```bash
-/opt/ytdl
-```
+- 项目目录外的下载目录
+- `/usr/local/bin/ffmpeg`
+- `/usr/local/bin/ffprobe`
 
-默认下载目录：
+卸载默认不会删除：
 
-```bash
-/opt/ytdl/downloads
-```
-
-默认批量链接文件：
-
-```bash
-/opt/ytdl/url.txt
-```
-
-如果安装后不手动修改下载路径，视频和音频文件默认都会保存到 `/opt/ytdl/downloads`。
-
-如需自定义安装路径，可在执行前设置：
-
-```bash
-export YTDL_HOME=/your/custom/path
-bash <(curl -fsSL https://raw.githubusercontent.com/misakacoo/ytdl/main/install.sh)
-```
+- `python3`
+- `python3-venv`
+- `apt` 安装的系统工具和构建依赖
+- 其他项目可能共用的 Python 版本
 
 ## 注意事项
 
 - 当前仅支持 Debian / Ubuntu 系系统
 - 下载视频合并和音频转 `mp3` 依赖 `ffmpeg`
-- 下载时如果缺少 `ffmpeg`，程序会提示是否自动执行完整安装
-- 如果系统 `Python` 低于 `3.10`，安装脚本会提示是否自动升级；如果不升级，安装会终止
-- `更新 yt-dlp` 通常需要 `Python 3.10+`
+- 如果系统 Python 低于 `3.10`，安装脚本会提示升级
 - 单个下载默认只处理单个视频链接，不下载整个播放列表
-- 批量下载按 `url.txt` 中的链接顺序逐个执行
 - 某些视频可能受地区、年龄、登录或平台限制，`yt-dlp` 可能无法下载
-
-## 发布前提醒
-
-在 GitHub 一键安装生效前，请先把这些文件上传到仓库默认分支 `main`：
-
-- `install.sh`
-- `run.sh`
-- `downloader.py`
-- `requirements.txt`
-- `README.md`
-- `url.txt`

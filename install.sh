@@ -9,11 +9,18 @@ RAW_INSTALL_URL="https://raw.githubusercontent.com/misakacoo/ytdl/${REPO_REF}/in
 INSTALL_DIR="${YTDL_HOME:-/opt/ytdl}"
 VENV_DIR="$SCRIPT_DIR/.venv"
 YTDL_COMMAND="/usr/local/bin/ytdl"
+DEFAULT_DOWNLOAD_DIR="/opt/ytdl/download"
+DOWNLOAD_PATH_FILE="$SCRIPT_DIR/download_path.txt"
 PYTHON_MIN_VERSION="3.10.0"
 PYTHON_LATEST_VERSION="3.14.5"
 PYTHON_LATEST_MM="3.14"
 PYTHON_BIN=""
 INSTALL_ONLY=0
+UPDATE_PROJECT=0
+UNINSTALL=0
+REMOVE_DOWNLOADS=0
+REMOVE_FFMPEG=0
+ASSUME_YES=0
 TARGET_USER="${SUDO_USER:-$(id -un)}"
 TARGET_GROUP="$(id -gn "$TARGET_USER")"
 
@@ -65,6 +72,26 @@ parse_args() {
         INSTALL_ONLY=1
         shift
         ;;
+      --update-project)
+        UPDATE_PROJECT=1
+        shift
+        ;;
+      --uninstall)
+        UNINSTALL=1
+        shift
+        ;;
+      --remove-downloads)
+        REMOVE_DOWNLOADS=1
+        shift
+        ;;
+      --remove-ffmpeg)
+        REMOVE_FFMPEG=1
+        shift
+        ;;
+      --yes)
+        ASSUME_YES=1
+        shift
+        ;;
       *)
         echo "不支持的参数：$1"
         exit 1
@@ -76,6 +103,19 @@ parse_args() {
 ensure_project_files() {
   if has_project_files "$SCRIPT_DIR"; then
     return
+  fi
+
+  if [[ "$UNINSTALL" -eq 1 || "$UPDATE_PROJECT" -eq 1 ]]; then
+    if has_project_files "$INSTALL_DIR"; then
+      echo "==> 检测到已安装项目目录：$INSTALL_DIR"
+      exec "$INSTALL_DIR/install.sh" "$@"
+    fi
+    if [[ "$UNINSTALL" -eq 1 ]]; then
+      echo "未检测到已安装的 ytdl 项目，无需卸载。"
+    else
+      echo "未检测到已安装的 ytdl 项目，无法更新。"
+    fi
+    exit 1
   fi
 
   echo "当前执行的是独立安装脚本，未检测到完整项目文件。"
@@ -144,7 +184,7 @@ sync_project_to_install_dir() {
   for item in "$source_dir"/* "$source_dir"/.[!.]* "$source_dir"/..?*; do
     item_name="$(basename "$item")"
     case "$item_name" in
-      .|..|.git|.venv|downloads|__pycache__)
+      .|..|.git|.venv|download|downloads|__pycache__)
         continue
         ;;
     esac
@@ -197,6 +237,13 @@ bootstrap_project() {
 }
 
 ensure_install_location() {
+  if [[ "$UNINSTALL" -eq 1 || "$UPDATE_PROJECT" -eq 1 ]]; then
+    INSTALL_DIR="$SCRIPT_DIR"
+    VENV_DIR="$SCRIPT_DIR/.venv"
+    DOWNLOAD_PATH_FILE="$SCRIPT_DIR/download_path.txt"
+    return
+  fi
+
   if [[ "$SCRIPT_DIR" == "$INSTALL_DIR" ]]; then
     return
   fi
@@ -321,6 +368,39 @@ install_latest_ffmpeg() {
   rm -rf "$tmp_dir"
 }
 
+path_is_within() {
+  local child parent
+  child="${1%/}"
+  parent="${2%/}"
+  [[ "$child" == "$parent" || "$child" == "$parent"/* ]]
+}
+
+load_download_dir() {
+  local download_dir
+
+  download_dir="$DEFAULT_DOWNLOAD_DIR"
+  if [[ -f "$DOWNLOAD_PATH_FILE" ]]; then
+    download_dir="$(<"$DOWNLOAD_PATH_FILE")"
+    if [[ -z "${download_dir// }" ]]; then
+      download_dir="$DEFAULT_DOWNLOAD_DIR"
+    fi
+  fi
+
+  printf '%s\n' "$download_dir"
+}
+
+ensure_download_dir_config() {
+  local download_dir
+
+  download_dir="$(load_download_dir)"
+  mkdir -p "$download_dir"
+  if [[ ! -f "$DOWNLOAD_PATH_FILE" ]]; then
+    printf '%s\n' "$download_dir" > "$DOWNLOAD_PATH_FILE"
+  fi
+  $SUDO chown -R "$TARGET_USER:$TARGET_GROUP" "$download_dir"
+  $SUDO chown "$TARGET_USER:$TARGET_GROUP" "$DOWNLOAD_PATH_FILE"
+}
+
 print_versions() {
   local ffmpeg_bin
   echo "==> 当前版本"
@@ -329,6 +409,29 @@ print_versions() {
   ffmpeg_bin="$(command -v ffmpeg)"
   "$ffmpeg_bin" -version | head -n 1
   "$VENV_DIR/bin/python" -m yt_dlp --version
+  if [[ -f "$DOWNLOAD_PATH_FILE" ]]; then
+    echo "默认下载目录：$(<"$DOWNLOAD_PATH_FILE")"
+  fi
+}
+
+configure_download_dir() {
+  local current_dir download_dir answer
+
+  current_dir="$DEFAULT_DOWNLOAD_DIR"
+  if [[ -f "$DOWNLOAD_PATH_FILE" ]]; then
+    answer="$(<"$DOWNLOAD_PATH_FILE")"
+    if [[ -n "${answer// }" ]]; then
+      current_dir="$answer"
+    fi
+  fi
+
+  read -r -p "请输入默认下载路径，直接回车使用：$current_dir " answer
+  download_dir="${answer:-$current_dir}"
+
+  mkdir -p "$download_dir"
+  printf '%s\n' "$download_dir" > "$DOWNLOAD_PATH_FILE"
+  $SUDO chown -R "$TARGET_USER:$TARGET_GROUP" "$download_dir"
+  $SUDO chown "$TARGET_USER:$TARGET_GROUP" "$DOWNLOAD_PATH_FILE"
 }
 
 perform_install() {
@@ -338,6 +441,8 @@ perform_install() {
 
   $SUDO mkdir -p "$SCRIPT_DIR"
   $SUDO chown -R "$TARGET_USER:$TARGET_GROUP" "$SCRIPT_DIR"
+
+  configure_download_dir
 
   install_latest_ffmpeg
   select_python
@@ -354,14 +459,143 @@ perform_install() {
   "$VENV_DIR/bin/python" -m pip install --upgrade pip
   "$VENV_DIR/bin/python" -m pip install --upgrade -r "$SCRIPT_DIR/requirements.txt"
 
-  mkdir -p "$SCRIPT_DIR/downloads"
   touch "$SCRIPT_DIR/url.txt"
-  $SUDO chown -R "$TARGET_USER:$TARGET_GROUP" "$SCRIPT_DIR/downloads"
   $SUDO chown "$TARGET_USER:$TARGET_GROUP" "$SCRIPT_DIR/url.txt"
   chmod +x "$SCRIPT_DIR/install.sh" "$SCRIPT_DIR/run.sh" "$SCRIPT_DIR/downloader.py"
   $SUDO ln -sf "$SCRIPT_DIR/run.sh" "$YTDL_COMMAND"
 
   print_versions
+}
+
+sync_update_files() {
+  local source_dir item item_name
+  source_dir="$1"
+
+  shopt -s dotglob nullglob
+  for item in "$source_dir"/* "$source_dir"/.[!.]* "$source_dir"/..?*; do
+    item_name="$(basename "$item")"
+    case "$item_name" in
+      .|..|.git|.venv|download|downloads|__pycache__|url.txt|download_path.txt)
+        continue
+        ;;
+    esac
+    $SUDO cp -a "$item" "$INSTALL_DIR"/
+  done
+  shopt -u dotglob nullglob
+
+  $SUDO chmod +x "$INSTALL_DIR/install.sh" "$INSTALL_DIR/run.sh" "$INSTALL_DIR/downloader.py"
+  $SUDO chown -R "$TARGET_USER:$TARGET_GROUP" "$INSTALL_DIR"
+}
+
+perform_project_update() {
+  local tmp_dir archive_path extracted_dir
+
+  if [[ "$ASSUME_YES" -ne 1 ]]; then
+    echo "==> 即将更新 ytdl 项目代码"
+    echo "==> 将保留：.venv、url.txt、download_path.txt 和下载目录"
+    if ! ask_yes_no "确认继续更新吗？" "Y"; then
+      echo "已取消更新。"
+      exit 0
+    fi
+  fi
+
+  tmp_dir="$(mktemp -d)"
+  archive_path="$tmp_dir/ytdl.tar.gz"
+
+  echo "==> 下载最新项目归档"
+  download_file "$ARCHIVE_URL" "$archive_path"
+
+  echo "==> 解压项目文件"
+  tar -xzf "$archive_path" -C "$tmp_dir"
+  extracted_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d -name 'ytdl-*' | head -n 1)"
+  if [[ -z "$extracted_dir" ]]; then
+    echo "项目归档解压失败，请检查仓库是否已上传且默认分支为 ${REPO_REF}。"
+    rm -rf "$tmp_dir"
+    exit 1
+  fi
+
+  echo "==> 更新项目文件到：$INSTALL_DIR"
+  sync_update_files "$extracted_dir"
+  rm -rf "$tmp_dir"
+
+  ensure_download_dir_config
+  select_python
+
+  if [[ -x "$VENV_DIR/bin/python" ]]; then
+    echo "==> 更新 Python 虚拟环境"
+    "$PYTHON_BIN" -m venv --upgrade "$VENV_DIR"
+  else
+    echo "==> 创建 Python 虚拟环境"
+    "$PYTHON_BIN" -m venv "$VENV_DIR"
+  fi
+
+  echo "==> 安装或更新 Python 依赖"
+  "$VENV_DIR/bin/python" -m pip install --upgrade pip
+  "$VENV_DIR/bin/python" -m pip install --upgrade -r "$SCRIPT_DIR/requirements.txt"
+
+  touch "$SCRIPT_DIR/url.txt"
+  $SUDO chown "$TARGET_USER:$TARGET_GROUP" "$SCRIPT_DIR/url.txt"
+  $SUDO ln -sf "$SCRIPT_DIR/run.sh" "$YTDL_COMMAND"
+
+  echo "==> ytdl 项目更新完成。"
+  print_versions
+}
+
+perform_uninstall() {
+  local download_dir
+
+  if [[ "$REMOVE_DOWNLOADS" -eq 1 || "$REMOVE_FFMPEG" -eq 1 ]] && [[ "$UNINSTALL" -ne 1 ]]; then
+    echo "卸载附加参数只能和 --uninstall 一起使用。"
+    exit 1
+  fi
+
+  download_dir="$(load_download_dir)"
+
+  echo "==> 开始卸载 ytdl"
+  echo "==> 将删除项目目录：$INSTALL_DIR"
+  echo "==> 将删除命令入口：$YTDL_COMMAND"
+
+  if path_is_within "$download_dir" "$INSTALL_DIR"; then
+    echo "==> 当前下载目录位于项目目录内，将随项目一起删除：$download_dir"
+  elif [[ "$REMOVE_DOWNLOADS" -eq 1 ]]; then
+    echo "==> 将额外删除下载目录：$download_dir"
+  else
+    echo "==> 保留下载目录：$download_dir"
+  fi
+
+  if [[ "$REMOVE_FFMPEG" -eq 1 ]]; then
+    echo "==> 将额外删除：/usr/local/bin/ffmpeg 和 /usr/local/bin/ffprobe"
+  else
+    echo "==> 保留系统中的 ffmpeg/ffprobe"
+  fi
+
+  if [[ "$ASSUME_YES" -ne 1 ]]; then
+    if ! ask_yes_no "确认继续卸载吗？" "N"; then
+      echo "已取消卸载。"
+      exit 0
+    fi
+  fi
+
+  $SUDO rm -f "$YTDL_COMMAND"
+
+  if [[ "$REMOVE_FFMPEG" -eq 1 ]]; then
+    $SUDO rm -f /usr/local/bin/ffmpeg /usr/local/bin/ffprobe
+  fi
+
+  if [[ "$REMOVE_DOWNLOADS" -eq 1 ]] && ! path_is_within "$download_dir" "$INSTALL_DIR"; then
+    if [[ "$download_dir" == "/" ]]; then
+      echo "检测到下载目录为根目录，已跳过删除。"
+    elif [[ -e "$download_dir" ]]; then
+      $SUDO rm -rf "$download_dir"
+    fi
+  fi
+
+  if [[ -d "$INSTALL_DIR" ]]; then
+    $SUDO rm -rf "$INSTALL_DIR"
+  fi
+
+  echo "==> 卸载完成。"
+  echo "==> 未自动删除 python3、python3-venv、构建依赖或可能共用的 Python 版本。"
 }
 
 launch_app() {
@@ -370,9 +604,23 @@ launch_app() {
 
 main() {
   parse_args "$@"
+  if [[ "$UNINSTALL" -ne 1 && ( "$REMOVE_DOWNLOADS" -eq 1 || "$REMOVE_FFMPEG" -eq 1 ) ]]; then
+    echo "--remove-downloads 和 --remove-ffmpeg 只能和 --uninstall 一起使用。"
+    exit 1
+  fi
   ensure_supported_os
   ensure_project_files "$@"
   ensure_install_location "$@"
+
+  if [[ "$UNINSTALL" -eq 1 ]]; then
+    perform_uninstall
+    exit 0
+  fi
+
+  if [[ "$UPDATE_PROJECT" -eq 1 ]]; then
+    perform_project_update
+    exit 0
+  fi
 
   if [[ "$INSTALL_ONLY" -eq 1 ]]; then
     perform_install
